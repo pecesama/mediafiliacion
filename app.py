@@ -22,7 +22,7 @@ except:
 genai.configure(api_key=api_key)
 
 # Usamos Gemini 1.5 Pro o Flash. Flash es más rápido para visión.
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-3-flash-preview')
 
 # --- PROMPT MAESTRO (BASE DE CONOCIMIENTO EXTRACTADA DEL PDF) ---
 SYSTEM_PROMPT_FORENSE = """
@@ -184,4 +184,5 @@ with tab2:
 
 # --- FOOTER ---
 st.markdown("---")
+
 st.caption("Sistema basado en el documento oficial 'FILIACION.pdf' del Secretariado Ejecutivo del SNSP.")
