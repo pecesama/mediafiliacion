@@ -4,14 +4,14 @@ from PIL import Image
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
-    page_title="Sistema Forense: Media Filiación SNSP",
+    page_title="Media Filiación",
     page_icon="🕵️‍♂️",
     layout="wide"
 )
 
 # --- CONFIGURACIÓN DE API ---
-# En producción (Streamlit Cloud), usa st.secrets["GEMINI_API_KEY"]
-# Para pruebas locales, puedes descomentar la línea de abajo e insertar tu key:
+# En producción (Streamlit Cloud), st.secrets["GEMINI_API_KEY"]
+# Local:
 # api_key = "TU_API_KEY_AQUI" 
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
@@ -21,10 +21,9 @@ except:
 
 genai.configure(api_key=api_key)
 
-# Usamos Gemini 1.5 Pro o Flash. Flash es más rápido para visión.
 model = genai.GenerativeModel('gemini-3-flash-preview')
 
-# --- PROMPT MAESTRO (BASE DE CONOCIMIENTO EXTRACTADA DEL PDF) ---
+# --- PROMPT MAESTRO (BASE DE CONOCIMIENTO DE LA PRESENTACIÓN) ---
 SYSTEM_PROMPT_FORENSE = """
 ACTÚA COMO UN PERITO EXPERTO DEL SISTEMA NACIONAL DE SEGURIDAD PÚBLICA (SNSP) DE MÉXICO.
 Tu tarea es generar la MEDIA FILIACIÓN de la persona en la imagen siguiendo ESTRICTAMENTE el vocabulario controlado del "Manual de Media Filiación y Señas Particulares".
@@ -59,7 +58,7 @@ REGLAS CRÍTICAS:
 5. CEJAS
    - Dirección: Horizontal, Internas (caen al centro), Externas (suben al exterior).
    - Implantación: Altas, Bajas, Próximas, Separadas.
-   - Forma: Arqueadas, Sinuosas, Rectilíneas.
+   - Forma: Arqueadas, Arqueadas Sinuosas, Rectilíneas, Rectilíneas Sinuosas.
    - Tamaño: Gruesas, Delgadas, Largas, Cortas.
 
 6. OJOS
@@ -81,20 +80,25 @@ REGLAS CRÍTICAS:
 9. LABIOS
    - Espesor: Delgados, Medianos, Gruesos, Morrudos (muy gruesos/hinchados).
    - Altura Naso-labial: Grande, Mediana, Pequeña.
-   - Prominencia Labio Inferior: Ninguna, Sí.
+   - Prominencia: Labio Inferior, Ninguna.
 
-10. MENTÓN
+10. OREJA DERECHA (Si no visible, describir Izquierda y mencionarlo)
+    - Forma: Cuadrada, Ovalada, Redonda, Triangular.
+    - Hélix (Borde): Original/Superior/Posterior (Grande/Mediano/Pequeño).
+    - Adherencia (apartamiento de la oreja): Unido, Separado, Muy separado.
+    - Lóbulo: Descendente, En Golfo, Escuadra, Intermedio.
+    - Particularidad Lóbulo: Perforado, Foseta, Islote.
+    - Dimensión Lóbulo (respecto al resto de la oreja): Grande, Mediano, Pequeño.
+
+11. MENTÓN
     - Tipo: Foseta (hoyuelo), Bilovado (partido), Borla (muy pronunciado/redondo).
     - Forma: Oval, Cuadrado, En Punta.
     - Inclinación: Huyente, Prominente, Vertical.
 
-11. OREJA DERECHA (Si no visible, describir Izquierda)
-    - Forma: Cuadrada, Ovalada, Redonda, Triangular.
-    - Hélix (Borde): Original/Superior/Posterior (Grande/Mediano/Pequeño).
-    - Lóbulo: Descendente, En Golfo, Escuadra, Intermedio.
-    - Particularidad Lóbulo: Perforado, Foseta, Islote.
+13. Accesorios
+    - Usa lentes: Sí, No.
 
-12. SEÑAS PARTICULARES (Código SNSP)
+14. SEÑAS PARTICULARES
     Formato: TIPO - LADO - REGIÓN - VISTA - CANTIDAD
     - Tipos: 1.Cicatriz, 2.Tatuaje, 3.Lunar, 4.Defecto, 5.Prótesis.
     - Lado: D (Derecho), I (Izquierdo).
@@ -103,21 +107,21 @@ REGLAS CRÍTICAS:
     Ejemplo: "2-D-12-F-01" (Tatuaje cuello derecho frontal).
 
 --- FORMATO DE SALIDA ---
-Genera una tabla Markdown limpia con dos columnas: "Rasgo" y "Descripción SNSP".
-Al final, agrega un párrafo resumen narrativo para búsqueda rápida.
+Genera una tabla Markdown limpia con dos columnas: "Rasgo" y "Descripción".
+Al final, agrega un párrafo resumen narrativo para búsqueda rápida y que permita reproducir un retrato de la persona analizada.
 """
 
 # --- INTERFAZ DE USUARIO ---
-st.title("🕵️‍♂️ Sistema de Media Filiación Forense (SNSP)")
+st.title("Sistema de Media Filiación Forense")
 st.markdown("""
 <style>
 .big-font { font-size:18px !important; }
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("Herramienta oficial para generación de fichas de identificación basadas en el **Manual de Media Filiación** de la Fiscalía Mexicana.")
+st.markdown("Herramienta para generación de fichas de identificación basadas en el **Manual de Media Filiación** del Sistema Nacional de Seguridad Pública.")
 
-tab1, tab2 = st.tabs(["📸 De FOTO a TEXTO (Análisis)", "🎨 De TEXTO a IMAGEN (Reconstrucción)"])
+tab1, tab2 = st.tabs(["De FOTO a TEXTO (Análisis)", "De TEXTO a IMAGEN (Reconstrucción)"])
 
 # --- PESTAÑA 1: ANÁLISIS ---
 with tab1:
@@ -149,11 +153,11 @@ with tab1:
 # --- PESTAÑA 2: RECONSTRUCCIÓN (Generación de Prompt) ---
 with tab2:
     st.header("Generador de Retrato Hablado")
-    st.markdown("Convierte una descripción técnica (ej. IPH) en un *Prompt* optimizado para generadores de imagen (DALL-E 3, Midjourney, Imagen 3).")
+    st.markdown("Convierte una descripción técnica (ej. IPH) en un *Prompt* optimizado para generadores de imagen (ChatGPT, Gemini, etc.).")
     
     texto_filiacion = st.text_area("Pegue aquí la descripción técnica (ej: 'Sujeto masculino, tez morena oscura, labios morrudos...')", height=150)
     
-    if st.button("🎨 Traducir a Prompt Visual"):
+    if st.button("Traducir a Prompt"):
         if texto_filiacion:
             with st.spinner('Traduciendo terminología forense a lenguaje visual...'):
                 prompt_traduccion = f"""
@@ -176,13 +180,11 @@ with tab2:
                 
                 st.subheader("Prompt Generado (Copiar y Pegar)")
                 st.code(response_prompt.text, language="text")
-                st.caption("Usa este texto en Bing Image Creator, Midjourney o DALL-E para obtener el retrato.")
-                
-                # Opcional: Si tuvieras acceso a DALL-E API, aquí podrías llamar a la generación real.
+                st.caption("Usa este texto en una IA para obtener el retrato.")
         else:
             st.warning("Por favor ingrese la descripción primero.")
 
 # --- FOOTER ---
 st.markdown("---")
 
-st.caption("Sistema basado en el documento oficial 'FILIACION.pdf' del Secretariado Ejecutivo del SNSP.")
+st.caption("Sistema basado en el documento 'Registro Nacional de Identificación -Media Filiación-' del Secretariado Ejecutivo del SNSP. <br>Desarrollado por el IHCLab de la Facultad de Telemática en la Universidad de Colima")
