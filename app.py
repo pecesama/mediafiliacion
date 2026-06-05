@@ -17,6 +17,7 @@ from typing import Any, List, Tuple
 
 import streamlit as st
 from PIL import Image
+from fpdf import FPDF
 
 try:
     from google import genai
@@ -180,6 +181,57 @@ def image_generation_config():
     except Exception:
         return types.GenerateContentConfig(response_modalities=["TEXT", "IMAGE"])
 
+def generar_pdf_filiacion(num_ficha: str, metadata: str, texto_markdown: str) -> bytes:
+    """Construye un documento PDF institucional con los resultados."""
+    class PDFReport(FPDF):
+        def header(self):
+            # Encabezado Oficial
+            self.set_font("helvetica", "B", 14)
+            self.cell(0, 10, "SISTEMA NACIONAL DE SEGURIDAD PÚBLICA", align="C", new_x="LMARGIN", new_y="NEXT")
+            self.set_font("helvetica", "B", 12)
+            self.cell(0, 8, "REGISTRO NACIONAL DE IDENTIFICACIÓN - MEDIA FILIACIÓN", align="C", new_x="LMARGIN", new_y="NEXT")
+            self.ln(5)
+
+        def footer(self):
+            # Pie de página con numeración
+            self.set_y(-15)
+            self.set_font("helvetica", "I", 8)
+            self.cell(0, 10, f"Página {self.page_no()}/{{nb}}", align="C")
+
+    pdf = PDFReport()
+    pdf.add_page()
+    
+    # --- SECCIÓN DE METADATOS ---
+    pdf.set_font("helvetica", "B", 10)
+    pdf.cell(0, 8, "DATOS DEL EXPEDIENTE:", new_x="LMARGIN", new_y="NEXT")
+    
+    pdf.set_font("helvetica", size=10)
+    # Escribimos cada línea de los metadatos
+    for linea in metadata.split('\n'):
+        if linea.strip():
+            pdf.cell(0, 6, linea.strip(), new_x="LMARGIN", new_y="NEXT")
+    
+    pdf.ln(5)
+    
+    # --- SECCIÓN DE RESULTADOS (Limpieza de Markdown) ---
+    pdf.set_font("helvetica", size=10)
+    # El modelo de IA nos da Markdown (con **, ##, y tablas con |). 
+    # Hacemos una limpieza básica para que se lea limpio en el PDF.
+    for linea in texto_markdown.split('\n'):
+        linea_limpia = linea.replace('**', '').replace('##', '').replace('|', '  ')
+        if linea_limpia.strip() == '---':
+            pdf.ln(5)
+            continue
+            
+        pdf.multi_cell(0, 6, linea_limpia, new_x="LMARGIN", new_y="NEXT")
+        
+    # --- AVISO LEGAL AL FINAL ---
+    pdf.ln(10)
+    pdf.set_font("helvetica", "I", 8)
+    aviso = "Advertencia: Resultado asistido por IA. Requiere validación humana y uso conforme a normativa aplicable. Herramienta de apoyo técnico, no debe usarse para identificación automática concluyente."
+    pdf.multi_cell(0, 5, aviso, new_x="LMARGIN", new_y="NEXT")
+
+    return bytes(pdf.output())
 
 # ─────────────────────────────────────────────────────────────
 # PROMPTS
@@ -487,16 +539,22 @@ with tab1:
                     st.markdown("---")
                     st.markdown(metadata.replace("\n", "  \n"))
 
-                    ficha_txt = (
-                        f"MEDIA FILIACIÓN SNSP\n{'=' * 60}\n"
-                        f"{metadata}"
-                        f"{'=' * 60}\n\n"
-                        f"{resultado}\n\n"
-                        "---\n"
-                        "Advertencia: resultado asistido por IA; requiere validación humana y base legal para el tratamiento de datos.\n"
+                    # 1. Mostrar metadatos en pantalla
+                    st.markdown("---")
+                    st.markdown(metadata.replace("\n", "  \n"))
+
+                    # 2. Construir documento PDF en memoria
+                    pdf_bytes = generar_pdf_filiacion(num_ficha, metadata, resultado)
+                    
+                    # 3. Botón de descarga de PDF
+                    filename = f"Media_Filiacion_{num_ficha or 'SNSP'}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+                    st.download_button(
+                        label="📥 Descargar Ficha Formal (.pdf)",
+                        data=pdf_bytes,
+                        file_name=filename,
+                        mime="application/pdf",
+                        type="primary" # Lo resalta en color
                     )
-                    filename = f"media_filiacion_{num_ficha or 'sin_num'}_{datetime.now().strftime('%Y%m%d_%H%M')}.txt"
-                    st.download_button("📥 Descargar ficha (.txt)", ficha_txt, filename, "text/plain")
 
                     st.session_state["ultima_ficha"] = resultado
                     st.info("La ficha quedó disponible en la pestaña FICHA → IMAGEN.")
@@ -604,7 +662,7 @@ with tab2:
             disabled=not bool(prompt_final),
         )
     with col_btn2:
-        st.info("💡 **Opción gratuita:** Copia o descarga el prompt y pégalo en herramientas como **Bing Image Creator** (DALL-E 3) o **Midjourney**.")
+        st.info("💡 Copia o descarga el prompt y pégalo en herramientas generadoras de imágenes.")
         
         # --- OPCIÓN 1: GENERACIÓN DIRECTA API ---
         # Código comentado temporalmente por límites de cuota (Requiere facturación activa)
