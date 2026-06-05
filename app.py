@@ -530,6 +530,7 @@ with tab2:
     )
 
     col_o1, col_o2, col_o3 = st.columns(3)
+    
     with col_o1:
         estilo = st.selectbox(
             "Estilo de imagen",
@@ -539,7 +540,9 @@ with tab2:
                 "Retrato hiperrealista sobrio, fondo neutro",
                 "Ilustración técnica limpia, no caricatura",
             ],
+            index=1 # Preseleccionamos "Boceto forense" como valor por defecto
         )
+        
     with col_o2:
         angulo = st.selectbox(
             "Ángulo / composición",
@@ -550,7 +553,12 @@ with tab2:
                 "Vista doble (Frente y perfil en la misma imagen)",
             ],
         )
+        
     with col_o3:
+        # Lógica de HCI: Si elige Vista doble, sugerimos Horizontal (índice 3). 
+        # Si elige un solo rostro, sugerimos Vertical (índice 0).
+        indice_proporcion = 3 if "Vista doble" in angulo else 0
+        
         aspect_ratio = st.selectbox(
             "Formato de imagen (Proporción)",
             [
@@ -560,6 +568,7 @@ with tab2:
                 "4:3 (Horizontal tradicional)",
                 "16:9 (Panorámica / Pantalla ancha)",
             ],
+            index=indice_proporcion
         )
 
     acabado = st.selectbox(
@@ -569,6 +578,7 @@ with tab2:
             "documental, neutro, sin dramatización",
             "boceto forense, líneas limpias, fondo neutro",
         ],
+        index=2 # Preseleccionamos el boceto forense por seguridad legal
     )
 
     prompt_final = ""
@@ -594,50 +604,55 @@ with tab2:
             disabled=not bool(prompt_final),
         )
     with col_btn2:
-        generar_imagen = st.button(
-            "🖼️ Generar imagen con Gemini",
-            type="primary",
-            disabled=not bool(prompt_final),
-        )
+        st.info("💡 **Opción gratuita:** Copia o descarga el prompt y pégalo en herramientas como **Bing Image Creator** (DALL-E 3) o **Midjourney**.")
+        
+        # --- OPCIÓN 1: GENERACIÓN DIRECTA API ---
+        # Código comentado temporalmente por límites de cuota (Requiere facturación activa)
+        # generar_imagen = st.button(
+        #     "🖼️ Generar imagen con Gemini",
+        #     type="primary",
+        #     disabled=not bool(prompt_final),
+        # )
 
-    if generar_imagen and prompt_final:
-        with st.spinner(f"Generando imagen con {IMAGE_MODEL_NAME}…"):
-            try:
-                response_img = client.models.generate_content(
-                    model=IMAGE_MODEL_NAME,
-                    contents=prompt_final,
-                    config=image_generation_config(),
-                )
-                texto_modelo, imagenes = collect_text_and_images(response_img)
-
-                if texto_modelo:
-                    st.markdown("#### Respuesta del modelo")
-                    st.markdown(texto_modelo)
-
-                if not imagenes:
-                    st.warning(
-                        "El modelo no devolvió imagen. Puede deberse a credenciales, cuota, disponibilidad del modelo "
-                        "o filtros de seguridad."
-                    )
-                else:
-                    st.markdown("#### Imagen generada")
-                    ts_img = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    for idx, imagen in enumerate(imagenes, start=1):
-                        st.image(imagen, caption=f"Retrato generado {idx}", use_container_width=True)
-                        st.download_button(
-                            f"📥 Descargar imagen {idx} (.png)",
-                            image_to_png_bytes(imagen),
-                            f"retrato_hablado_{ts_img}_{idx}.png",
-                            "image/png",
-                            key=f"download_img_{idx}_{ts_img}",
-                        )
-
-            except Exception as e:
-                st.error(f"Error al generar imagen: {e}")
-                st.info(
-                    "Verifica que tu modelo de imagen esté disponible en tu cuenta/proyecto, "
-                    "que Agent Platform esté habilitado si usas Google Cloud y que tengas cuota."
-                )
+    # --- LÓGICA DE GENERACIÓN DE IMAGEN COMENTADA ---
+    # if generar_imagen and prompt_final:
+    #     with st.spinner(f"Generando imagen con {IMAGE_MODEL_NAME}…"):
+    #         try:
+    #             response_img = client.models.generate_content(
+    #                 model=IMAGE_MODEL_NAME,
+    #                 contents=prompt_final,
+    #                 config=image_generation_config(),
+    #             )
+    #             texto_modelo, imagenes = collect_text_and_images(response_img)
+    #
+    #             if texto_modelo:
+    #                 st.markdown("#### Respuesta del modelo")
+    #                 st.markdown(texto_modelo)
+    #
+    #             if not imagenes:
+    #                 st.warning(
+    #                     "El modelo no devolvió imagen. Puede deberse a credenciales, cuota, disponibilidad del modelo "
+    #                     "o filtros de seguridad."
+    #                 )
+    #             else:
+    #                 st.markdown("#### Imagen generada")
+    #                 ts_img = datetime.now().strftime("%Y%m%d_%H%M%S")
+    #                 for idx, imagen in enumerate(imagenes, start=1):
+    #                     st.image(imagen, caption=f"Retrato generado {idx}", use_container_width=True)
+    #                     st.download_button(
+    #                         f"📥 Descargar imagen {idx} (.png)",
+    #                         image_to_png_bytes(imagen),
+    #                         f"retrato_hablado_{ts_img}_{idx}.png",
+    #                         "image/png",
+    #                         key=f"download_img_{idx}_{ts_img}",
+    #                     )
+    #
+    #         except Exception as e:
+    #             st.error(f"Error al generar imagen: {e}")
+    #             st.info(
+    #                 "Verifica que tu modelo de imagen esté disponible en tu cuenta/proyecto, "
+    #                 "que Agent Platform esté habilitado si usas Google Cloud y que tengas cuota."
+    #             )
 
 # ─────────────────────────────────────────────────────────────
 # FOOTER
