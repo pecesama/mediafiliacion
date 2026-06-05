@@ -398,6 +398,7 @@ st.markdown(
             padding-top: 2rem !important;
             padding-bottom: 2rem !important;
         }
+        [data-testid="stMetricValue"] { font-size: 14px !important; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -406,7 +407,7 @@ st.markdown(
 st.title("🕵️ Sistema de Media Filiación Forense")
 st.markdown(
     "Herramienta basada en vocabulario de **Media Filiación SNSP** · "
-    "flujo recomendado: **fotografía frontal + fotografía de perfil** · v2.1"
+    "flujo recomendado: **fotografía frontal + fotografía de perfil** · v2.0"
 )
 
 # 2. Aviso de uso responsable usando el componente nativo de Streamlit
@@ -472,14 +473,9 @@ with tab1:
             revisor = st.text_input("Persona revisora / perito", placeholder="Nombre completo")
             expediente = st.text_input("No. de expediente", placeholder="Número")
 
-        with st.expander("📖 Qué aporta cada vista"):
-            st.markdown(
-                """
-<div class="mf-ok"><b>Frontal:</b> cara, cabello, frente altura/ancho, cejas, ojos, nariz raíz/altura/ancho, boca, labios, mentón tipo/forma, accesorios y señas visibles.</div>
-<div class="mf-bad"><b>Perfil:</b> frente inclinación, nariz dorso, nariz base y mentón inclinación. También ayuda con oreja y contorno lateral.</div>
-""",
-                unsafe_allow_html=True,
-            )
+        with st.expander("📖 ¿Qué aporta cada vista?"):
+            st.success("**Frontal:** cara, cabello, frente altura/ancho, cejas, ojos, nariz raíz/altura/ancho, boca, labios, mentón tipo/forma, accesorios y señas visibles.", icon="🟢")
+            st.info("**Perfil:** frente inclinación, nariz dorso, nariz base y mentón inclinación. También ayuda con oreja y contorno lateral.", icon="🔵")
 
         analyze_btn = st.button(
             "🔍 GENERAR MEDIA FILIACIÓN",
