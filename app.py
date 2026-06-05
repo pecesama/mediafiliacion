@@ -389,27 +389,33 @@ Instrucciones visuales:
 # ─────────────────────────────────────────────────────────────
 # UI PRINCIPAL
 # ─────────────────────────────────────────────────────────────
+
+# 1. CSS para reducir el espacio en blanco superior
+st.markdown(
+    """
+    <style>
+        .block-container {
+            padding-top: 2rem !important;
+            padding-bottom: 2rem !important;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 st.title("🕵️ Sistema de Media Filiación Forense")
 st.markdown(
     "Herramienta basada en vocabulario de **Media Filiación SNSP** · "
     "flujo recomendado: **fotografía frontal + fotografía de perfil** · v2.1"
 )
 
-col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-col_m1.metric("Modelo análisis", ANALYSIS_MODEL_NAME)
-col_m2.metric("Modelo imagen", IMAGE_MODEL_NAME)
-col_m3.metric("Entrada ideal", "Frente + perfil")
-col_m4.metric("Backend", BACKEND or "developer_api")
-
-st.markdown(
-    """
-<div class="mf-warn">
-<b>Uso responsable:</b> la salida es apoyo técnico y debe revisarse por una persona autorizada.
-No debe usarse para identificación automática concluyente ni para inferir identidad, origen étnico,
-nacionalidad u otros datos no visibles.
-</div>
-""",
-    unsafe_allow_html=True,
+# 2. Aviso de uso responsable usando el componente nativo de Streamlit
+# Esto soluciona el problema de legibilidad en el modo oscuro/claro
+st.warning(
+    "**Uso responsable:** la salida es apoyo técnico y debe revisarse por una persona autorizada. "
+    "No debe usarse para identificación automática concluyente ni para inferir identidad, origen étnico, "
+    "nacionalidad u otros datos no visibles.",
+    icon="⚠️"
 )
 
 st.markdown("---")
