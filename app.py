@@ -369,11 +369,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("🕵️ Sistema de Media Filiación Forense")
-st.markdown(
-    "Herramienta basada en vocabulario de **Media Filiación SNSP** · "
-    "flujo recomendado: **fotografía frontal + fotografía de perfil** · v2.0"
-)
+st.title("🕵️ Sistema de Media Filiación Forense · v2.0")
 
 st.markdown("---")
 
@@ -515,11 +511,7 @@ with tab1:
 # TAB 2 — FICHA A IMAGEN DIRECTA
 # ══════════════════════════════════════════
 with tab2:
-    st.header("🎨 Generador directo de retrato hablado")
-    st.markdown(
-        f"Genera una imagen sintética directamente con **{IMAGE_MODEL_NAME}**. "
-        "El prompt final queda visible para auditoría."
-    )
+    st.header("🎨 Generación del retrato hablado")
 
     valor_default = st.session_state.get("ultima_ficha", "")
     usar_anterior = False
@@ -552,16 +544,22 @@ with tab2:
         angulo = st.selectbox(
             "Ángulo / composición",
             [
-                "Frontal 0°",
-                "Perfil lateral 90°",
-                "Tres cuartos 45°",
-                "Frontal + perfil en un mismo lienzo",
+                "Frontal (Vista directa a la cámara)",
+                "Perfil (Vista completamente de lado)",
+                "Tres cuartos (Rostro ligeramente girado)",
+                "Vista doble (Frente y perfil en la misma imagen)",
             ],
         )
     with col_o3:
         aspect_ratio = st.selectbox(
-            "Relación de aspecto",
-            ["3:4", "1:1", "4:5", "4:3", "16:9"],
+            "Formato de imagen (Proporción)",
+            [
+                "3:4 (Vertical / Tipo retrato estándar)",
+                "1:1 (Cuadrada)",
+                "4:5 (Vertical más corto)",
+                "4:3 (Horizontal tradicional)",
+                "16:9 (Panorámica / Pantalla ancha)",
+            ],
         )
 
     acabado = st.selectbox(
@@ -569,7 +567,7 @@ with tab2:
         [
             "alta nitidez, iluminación uniforme, fondo gris claro",
             "documental, neutro, sin dramatización",
-            "forensic sketch, clean linework, neutral background",
+            "boceto forense, líneas limpias, fondo neutro",
         ],
     )
 
