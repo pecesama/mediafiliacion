@@ -1,190 +1,658 @@
-import streamlit as st
-import google.generativeai as genai
-from PIL import Image
+# -*- coding: utf-8 -*-
+"""
+Sistema de Media Filiación Forense v2.0
 
-# --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(
-    page_title="Media Filiación",
-    page_icon="🕵️‍♂️",
-    layout="wide"
-)
-
-# --- CONFIGURACIÓN DE API ---
-# En producción (Streamlit Cloud), st.secrets["GEMINI_API_KEY"]
-# Local:
-# api_key = "TU_API_KEY_AQUI" 
-try:
-    api_key = st.secrets["GEMINI_API_KEY"]
-except:
-    st.warning("⚠️ No se detectó API Key en Secrets. Asegúrate de configurarla.")
-    st.stop()
-
-genai.configure(api_key=api_key)
-
-model = genai.GenerativeModel('gemini-3-flash-preview')
-
-# --- PROMPT MAESTRO (BASE DE CONOCIMIENTO DE LA PRESENTACIÓN) ---
-SYSTEM_PROMPT_FORENSE = """
-ACTÚA COMO UN PERITO EXPERTO DEL SISTEMA NACIONAL DE SEGURIDAD PÚBLICA (SNSP) DE MÉXICO.
-Tu tarea es generar la MEDIA FILIACIÓN de la persona en la imagen siguiendo ESTRICTAMENTE el vocabulario controlado del "Manual de Media Filiación y Señas Particulares".
-
-REGLAS CRÍTICAS:
-1. Solo usa los términos permitidos (listados abajo). No inventes adjetivos.
-2. Si un rasgo no es visible, indica "NO VISIBLE".
-3. Para señas particulares, intenta generar el CÓDIGO DE UBICACIÓN (Topografía Humana) si es posible.
-
---- VOCABULARIO CONTROLADO OFICIAL (SNSP) ---
-
-1. DATOS GENERALES
-   - Sexo: Masculino, Femenino.
-   - Complexión: Delgada, Regular, Robusta, Obesa, Atlética.
-   - Color de Piel: Albino, Amarillo, Blanco, Moreno Claro, Moreno, Moreno Obscuro, Negro.
-
-2. CARA (Forma)
-   - Opciones: Alargada, Cuadrada, Ovalada, Redonda.
-
-3. CABELLO
-   - Cantidad: Abundante, Escaso, Regular, Sin Cabello.
-   - Color: Albino, Cano Total, Castaño Obscuro, Castaño Claro, Entrecano, Negro, Pelirojo, Rubio.
-   - Forma: Crespo, Lacio, Ondulado, Rizado.
-   - Calvicie: Frontal, Tonsural, Frontoparietal, Total.
-   - Implantación: En Punta, Circular, Rectangular.
-
-4. FRENTE
-   - Altura: Grande (>1/3 cara), Mediana (=1/3), Pequeña (<1/3).
-   - Inclinación: Oblicua (>20° atrás), Intermedia, Vertical, Prominente (abombada).
-   - Ancho: Grande, Mediana, Pequeña.
-
-5. CEJAS
-   - Dirección: Horizontal, Internas (caen al centro), Externas (suben al exterior).
-   - Implantación: Altas, Bajas, Próximas, Separadas.
-   - Forma: Arqueadas, Arqueadas Sinuosas, Rectilíneas, Rectilíneas Sinuosas.
-   - Tamaño: Gruesas, Delgadas, Largas, Cortas.
-
-6. OJOS
-   - Color: Azul, Café Claro, Café Oscuro, Verde, Gris.
-   - Forma: Alargados, Redondos, Ovales.
-   - Tamaño: Grandes, Pequeños, Regulares.
-
-7. NARIZ
-   - Raíz: Pequeña, Grande, Mediana.
-   - Dorso: Cóncavo, Convexo, Recto, Sinuoso.
-   - Base: Abatida (hacia abajo), Horizontal, Levantada.
-   - Altura: Pequeña, Grande, Mediana.
-   - Ancho: Grande, Mediana, Pequeña.
-
-8. BOCA
-   - Tamaño: Grande (comisuras pasan pupilas), Mediana, Pequeña.
-   - Comisuras: Abatidas, Elevadas, Simétricas.
-
-9. LABIOS
-   - Espesor: Delgados, Medianos, Gruesos, Morrudos (muy gruesos/hinchados).
-   - Altura Naso-labial: Grande, Mediana, Pequeña.
-   - Prominencia: Labio Inferior, Ninguna.
-
-10. OREJA DERECHA (Si no visible, describir Izquierda y mencionarlo)
-    - Forma: Cuadrada, Ovalada, Redonda, Triangular.
-    - Hélix (Borde): Original/Superior/Posterior (Grande/Mediano/Pequeño).
-    - Adherencia (apartamiento de la oreja): Unido, Separado, Muy separado.
-    - Lóbulo: Descendente, En Golfo, Escuadra, Intermedio.
-    - Particularidad Lóbulo: Perforado, Foseta, Islote.
-    - Dimensión Lóbulo (respecto al resto de la oreja): Grande, Mediano, Pequeño.
-
-11. MENTÓN
-    - Tipo: Foseta (hoyuelo), Bilovado (partido), Borla (muy pronunciado/redondo).
-    - Forma: Oval, Cuadrado, En Punta.
-    - Inclinación: Huyente, Prominente, Vertical.
-
-13. Accesorios
-    - Usa lentes: Sí, No.
-
-14. SEÑAS PARTICULARES
-    Formato: TIPO - LADO - REGIÓN - VISTA - CANTIDAD
-    - Tipos: 1.Cicatriz, 2.Tatuaje, 3.Lunar, 4.Defecto, 5.Prótesis.
-    - Lado: D (Derecho), I (Izquierdo).
-    - Vista: F (Frontal), D (Dorsal).
-    - Regiones Comunes (ejemplos): 02(Frontal), 09(Mejilla), 11(Mentón), 12(Cuello Ant), 19(Brazo Ant).
-    Ejemplo: "2-D-12-F-01" (Tatuaje cuello derecho frontal).
-
---- FORMATO DE SALIDA ---
-Genera una tabla Markdown limpia con dos columnas: "Rasgo" y "Descripción".
-Al final, agrega un párrafo resumen narrativo para búsqueda rápida y que permita reproducir un retrato de la persona analizada.
+Cambios frente a v1.0:
+- Agrega el flujo de 2 imágenes: frontal obligatoria + perfil opcional/recomendado.
+- Migra a Google Gen AI SDK (de `google-genai`).
+- Integra generación directa de retrato hablado con Gemini 3.1 Flash Image (Nano Banana 2).
 """
 
-# --- INTERFAZ DE USUARIO ---
-st.title("Sistema de Media Filiación Forense")
-st.markdown("""
-<style>
-.big-font { font-size:18px !important; }
-</style>
-""", unsafe_allow_html=True)
+from __future__ import annotations
 
-st.markdown("Herramienta para generación de fichas de identificación basadas en el **Manual de Media Filiación** del Sistema Nacional de Seguridad Pública.")
+import os
+from datetime import datetime
+from io import BytesIO
+from typing import Any, List, Tuple
 
-tab1, tab2 = st.tabs(["De FOTO a TEXTO (Análisis)", "De TEXTO a IMAGEN (Reconstrucción)"])
+import streamlit as st
+from PIL import Image
 
-# --- PESTAÑA 1: ANÁLISIS ---
-with tab1:
-    col1, col2 = st.columns([1, 2])
-    
-    with col1:
-        st.subheader("Evidencia")
-        uploaded_file = st.file_uploader("Subir fotografía (Frontal preferible)", type=["jpg", "png", "jpeg"])
-        
-        if uploaded_file:
-            image = Image.open(uploaded_file)
-            st.image(image, caption='Sujeto a identificar', use_container_width=True)
-            
-            analyze_btn = st.button("🔍 ANALIZAR FILIACIÓN", type="primary")
+try:
+    from google import genai
+    from google.genai import types
+except Exception as import_error:  # pragma: no cover
+    st.error(
+        "No se pudo importar `google-genai`. Instala dependencias con: "
+        "`pip install -r requirements.txt`."
+    )
+    st.exception(import_error)
+    st.stop()
 
-    with col2:
-        st.subheader("Ficha Técnica Generada")
-        if uploaded_file and analyze_btn:
-            with st.spinner('Procesando biometría facial y consultando estándares SNSP...'):
-                try:
-                    response = model.generate_content([SYSTEM_PROMPT_FORENSE, image])
-                    st.markdown(response.text)
-                    st.success("Análisis finalizado. Terminología validada con el estándar.")
-                except Exception as e:
-                    st.error(f"Error en el procesamiento: {str(e)}")
-        elif not uploaded_file:
-            st.info("Esperando imagen para iniciar el peritaje...")
+# ─────────────────────────────────────────────────────────────
+# CONFIGURACIÓN GENERAL
+# ─────────────────────────────────────────────────────────────
+st.set_page_config(
+    page_title="Media Filiación SNSP v2.0",
+    page_icon="🕵️",
+    layout="wide",
+)
 
-# --- PESTAÑA 2: RECONSTRUCCIÓN (Generación de Prompt) ---
-with tab2:
-    st.header("Generador de Retrato Hablado")
-    st.markdown("Convierte una descripción técnica (ej. IPH) en un *Prompt* optimizado para generadores de imagen (ChatGPT, Gemini, etc.).")
-    
-    texto_filiacion = st.text_area("Pegue aquí la descripción técnica (ej: 'Sujeto masculino, tez morena oscura, labios morrudos...')", height=150)
-    
-    if st.button("Traducir a Prompt"):
-        if texto_filiacion:
-            with st.spinner('Traduciendo terminología forense a lenguaje visual...'):
-                prompt_traduccion = f"""
-                Actúa como un artista forense experto en IA. Tienes la siguiente descripción técnica en español mexicano (SNSP):
-                "{texto_filiacion}"
+APP_VERSION = "2.0"
+DEFAULT_ANALYSIS_MODEL = "gemini-3.5-flash"
+DEFAULT_IMAGE_MODEL = "gemini-3.1-flash-image"
 
-                Tu tarea es convertir esto en un PROMPT EN INGLÉS altamente detallado para un generador de imágenes fotorrealistas.
-                
-                REGLAS DE TRADUCCIÓN:
-                1. "Moreno Oscuro" -> "Dark brown skin tone, mexican indigenous heritage traits".
-                2. "Labios Morrudos" -> "Very thick, full, puffy lips".
-                3. "Nariz Base Abatida" -> "Nose tip pointing downwards, hooked nose".
-                4. "Cabello Crespo" -> "Coily, tight curl hair texture".
-                5. Estilo: "Mugshot style, neutral lighting, hyper-realistic, 8k resolution, neutral background".
-                
-                Solo dame el PROMPT en inglés sin explicaciones extra.
-                """
-                
-                response_prompt = model.generate_content(prompt_traduccion)
-                
-                st.subheader("Prompt Generado (Copiar y Pegar)")
-                st.code(response_prompt.text, language="text")
-                st.caption("Usa este texto en una IA para obtener el retrato.")
-        else:
-            st.warning("Por favor ingrese la descripción primero.")
+# ─────────────────────────────────────────────────────────────
+# SECRETOS / CLIENTE GEMINI
+# ─────────────────────────────────────────────────────────────
 
-# --- FOOTER ---
+def secret_or_env(name: str, default: Any = "") -> Any:
+    """Lee primero Streamlit secrets y luego variables de entorno."""
+    value = None
+    try:
+        value = st.secrets.get(name)  # type: ignore[attr-defined]
+    except Exception:
+        value = None
+    if value is None or value == "":
+        value = os.getenv(name)
+    return default if value is None or value == "" else value
+
+
+def parse_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "t", "yes", "y", "si", "sí"}
+
+
+ANALYSIS_MODEL_NAME = str(secret_or_env("GEMINI_TEXT_MODEL", DEFAULT_ANALYSIS_MODEL))
+IMAGE_MODEL_NAME = str(secret_or_env("GEMINI_IMAGE_MODEL", DEFAULT_IMAGE_MODEL))
+BACKEND = str(secret_or_env("GOOGLE_GENAI_BACKEND", "developer_api")).strip().lower()
+API_KEY = secret_or_env("GEMINI_API_KEY") or secret_or_env("GOOGLE_API_KEY")
+PROJECT = secret_or_env("GOOGLE_CLOUD_PROJECT")
+LOCATION = str(secret_or_env("GOOGLE_CLOUD_LOCATION", "global"))
+USE_VERTEX_FLAG = parse_bool(secret_or_env("USE_VERTEX_AI", False)) or parse_bool(
+    secret_or_env("GOOGLE_GENAI_USE_VERTEXAI", False)
+)
+USE_ENTERPRISE_FLAG = parse_bool(secret_or_env("GOOGLE_GENAI_USE_ENTERPRISE", False))
+
+
+def build_genai_client() -> genai.Client:
+    """
+    Construye un cliente de Google Gen AI.
+    """
+    if API_KEY:
+        os.environ.setdefault("GEMINI_API_KEY", str(API_KEY))
+        os.environ.setdefault("GOOGLE_API_KEY", str(API_KEY))
+
+    if BACKEND in {"agent_platform", "enterprise", "google_cloud"} or USE_ENTERPRISE_FLAG:
+        os.environ["GOOGLE_GENAI_USE_ENTERPRISE"] = "True"
+        if PROJECT:
+            os.environ["GOOGLE_CLOUD_PROJECT"] = str(PROJECT)
+        os.environ["GOOGLE_CLOUD_LOCATION"] = LOCATION or "global"
+        return genai.Client(http_options=types.HttpOptions(api_version="v1"))
+
+    if BACKEND in {"vertex", "vertex_ai"} or USE_VERTEX_FLAG:
+        if not PROJECT:
+            raise RuntimeError("Falta GOOGLE_CLOUD_PROJECT para usar Vertex AI / Agent Platform.")
+        return genai.Client(
+            vertexai=True,
+            project=str(PROJECT),
+            location=LOCATION or "global",
+            http_options=types.HttpOptions(api_version="v1"),
+        )
+
+    if not API_KEY:
+        raise RuntimeError(
+            "Falta GEMINI_API_KEY. Configúrala en `.streamlit/secrets.toml` "
+            "o usa GOOGLE_GENAI_BACKEND='agent_platform' con credenciales de Google Cloud."
+        )
+    return genai.Client(api_key=str(API_KEY))
+
+
+try:
+    client = build_genai_client()
+except Exception as exc:
+    st.error(f"No se pudo inicializar Gemini: {exc}")
+    st.info(
+        "Copia `.streamlit/secrets.toml.example` a `.streamlit/secrets.toml` y configura "
+        "tu API key o tu proyecto de Gemini Enterprise Agent Platform."
+    )
+    st.stop()
+
+# ─────────────────────────────────────────────────────────────
+# HELPERS
+# ─────────────────────────────────────────────────────────────
+
+def load_uploaded_image(uploaded_file) -> Image.Image | None:
+    if uploaded_file is None:
+        return None
+    return Image.open(uploaded_file).convert("RGB")
+
+
+def collect_text(response) -> str:
+    """Extrae texto de una respuesta generate_content de forma tolerante."""
+    text = getattr(response, "text", None)
+    if text:
+        return str(text).strip()
+
+    chunks: List[str] = []
+    try:
+        for candidate in response.candidates or []:
+            for part in candidate.content.parts or []:
+                if getattr(part, "text", None):
+                    chunks.append(part.text)
+    except Exception:
+        pass
+    return "\n".join(chunks).strip()
+
+
+def collect_text_and_images(response) -> Tuple[str, List[Image.Image]]:
+    """Extrae texto e imágenes inline de una respuesta de Gemini Image."""
+    texts: List[str] = []
+    images: List[Image.Image] = []
+
+    try:
+        for candidate in response.candidates or []:
+            for part in candidate.content.parts or []:
+                if getattr(part, "text", None):
+                    texts.append(part.text)
+                inline_data = getattr(part, "inline_data", None)
+                if inline_data is not None and getattr(inline_data, "data", None):
+                    images.append(Image.open(BytesIO(inline_data.data)).convert("RGB"))
+    except Exception as parse_error:
+        texts.append(f"No se pudieron leer todas las partes de la respuesta: {parse_error}")
+
+    return "\n".join(texts).strip(), images
+
+
+def image_to_png_bytes(image: Image.Image) -> bytes:
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def image_generation_config():
+    """Config documentada: solicitar modalidades texto + imagen; fallback a strings."""
+    try:
+        return types.GenerateContentConfig(
+            response_modalities=[types.Modality.TEXT, types.Modality.IMAGE]
+        )
+    except Exception:
+        return types.GenerateContentConfig(response_modalities=["TEXT", "IMAGE"])
+
+
+# ─────────────────────────────────────────────────────────────
+# PROMPTS
+# ─────────────────────────────────────────────────────────────
+SYSTEM_PROMPT_FORENSE = """
+ACTÚA COMO AUXILIAR TÉCNICO PARA MEDIA FILIACIÓN CON VOCABULARIO SNSP DE MÉXICO.
+Tu tarea es describir rasgos visibles. No identifiques a la persona, no infieras nombre,
+nacionalidad, etnia, origen, ocupación, antecedentes, religión, estado de salud, ni identidad.
+
+IMÁGENES DISPONIBLES: {imagenes_disponibles}
+LADO DE PERFIL PROPORCIONADO: {lado_perfil}
+
+═══════════════════════════════════════════════
+REGLAS CRÍTICAS
+═══════════════════════════════════════════════
+1. Usa solo vocabulario controlado. No inventes categorías.
+2. Si un rasgo no es visible, escribe: NO VISIBLE.
+3. Si un rasgo requiere perfil y no hay perfil útil, escribe: REQUIERE FOTO DE PERFIL.
+4. Si un rasgo no puede determinarse con certeza, escribe: NO DETERMINABLE DESDE LA VISTA DISPONIBLE.
+5. Agrega confianza por rasgo: ALTA, MEDIA, BAJA o —.
+6. Color de piel debe ser solo una categoría técnica del catálogo; NO lo traduzcas a etnia, herencia o nacionalidad.
+7. Complexión no debe inferirse con alta confianza si solo se ve rostro; usa BAJA o NO VISIBLE.
+8. Estatura, peso y sangre/RH no se estiman desde foto.
+9. Si hay perfil izquierdo, no lo trates como oreja derecha; aclara que la oreja derecha no fue visible si aplica.
+
+═══════════════════════════════════════════════
+VISTAS NECESARIAS
+═══════════════════════════════════════════════
+FRONTAL:
+- Forma de cara, cabello, frente altura/ancho, cejas, ojos, nariz raíz/altura/ancho,
+  boca, labios, mentón tipo/forma, accesorios y señas visibles.
+
+PERFIL:
+- Frente inclinación.
+- Nariz dorso.
+- Nariz base.
+- Mentón inclinación.
+- Oreja visible, idealmente derecha.
+
+═══════════════════════════════════════════════
+VOCABULARIO CONTROLADO
+═══════════════════════════════════════════════
+Sexo: Masculino | Femenino | NO DETERMINABLE
+Complexión: Delgada | Regular | Robusta | Obesa | Atlética | NO VISIBLE
+Color de Piel: Albino | Amarillo | Blanco | Moreno Claro | Moreno | Moreno Obscuro | Negro
+Cara — Forma: Alargada | Cuadrada | Ovalada | Redonda
+Cabello — Cantidad: Abundante | Escaso | Regular | Sin Cabello
+Cabello — Color: Albino | Cano Total | Castaño Obscuro | Castaño Claro | Entrecano | Negro | Pelirojo | Rubio
+Cabello — Forma: Crespo | Lacio | Ondulado | Rizado
+Cabello — Calvicie: Frontal | Tonsural | Frontoparietal | Total | Ninguna
+Cabello — Implantación: En Punta | Circular | Rectangular | NO VISIBLE
+Frente — Altura: Grande | Mediana | Pequeña
+Frente — Inclinación: Oblicua | Intermedia | Vertical | Prominente
+Frente — Ancho: Grande | Mediana | Pequeña
+Cejas — Dirección: Horizontal | Internas | Externas
+Cejas — Implantación: Altas | Bajas | Próximas | Separadas
+Cejas — Forma: Arqueadas | Arqueadas Sinuosas | Rectilíneas | Rectilíneas Sinuosas
+Cejas — Tamaño: Gruesas | Delgadas | Largas | Cortas
+Ojos — Color: Azul | Café Claro | Café Oscuro | Verde | Gris | NO DETERMINABLE
+Ojos — Forma: Alargados | Redondos | Ovales
+Ojos — Tamaño: Grandes | Pequeños | Regulares
+Nariz — Raíz: Pequeña | Grande | Mediana
+Nariz — Dorso: Cóncavo | Convexo | Recto | Sinuoso
+Nariz — Base: Abatida | Horizontal | Levantada
+Nariz — Altura: Pequeña | Grande | Mediana
+Nariz — Ancho: Grande | Mediana | Pequeña
+Boca — Tamaño: Grande | Mediana | Pequeña
+Boca — Comisuras: Abatidas | Elevadas | Simétricas
+Labios — Espesor: Delgados | Medianos | Gruesos | Morrudos
+Labios — Altura Naso-labial: Grande | Mediana | Pequeña
+Labios — Prominencia: Labio Inferior | Ninguna
+Oreja D — Forma: Cuadrada | Ovalada | Redonda | Triangular | NO VISIBLE
+Oreja D — Hélix: Grande | Mediano | Pequeño | NO VISIBLE
+Oreja D — Adherencia: Unida | Separada | Muy separada | NO VISIBLE
+Oreja D — Lóbulo Forma: Descendente | En Golfo | Escuadra | Intermedio | NO VISIBLE
+Oreja D — Lóbulo Particularidad: Perforado | Foseta | Islote | Ninguna | NO VISIBLE
+Oreja D — Lóbulo Dimensión: Grande | Mediano | Pequeño | NO VISIBLE
+Mentón — Tipo: Foseta | Bilovado | Borla | Normal
+Mentón — Forma: Oval | Cuadrado | En Punta
+Mentón — Inclinación: Huyente | Prominente | Vertical
+Usa lentes: Sí | No
+
+Señas particulares:
+Formato recomendado: TIPO-LADO-REGIÓN-VISTA-CANTIDAD.
+Tipos: 1.Cicatriz | 2.Tatuaje | 3.Lunar | 4.Defecto | 5.Prótesis.
+
+═══════════════════════════════════════════════
+FORMATO DE SALIDA
+═══════════════════════════════════════════════
+## FICHA DE MEDIA FILIACIÓN
+
+| Rasgo | Descripción | Confianza | Vista usada | Observación |
+|---|---|---|---|---|
+| Sexo | ... | ... | FRONTAL | ... |
+| Complexión | ... | ... | FRONTAL | ... |
+| Color de Piel | ... | ... | FRONTAL | ... |
+| Cara — Forma | ... | ... | FRONTAL | ... |
+| Cabello — Cantidad | ... | ... | FRONTAL/PERFIL | ... |
+| Cabello — Color | ... | ... | FRONTAL/PERFIL | ... |
+| Cabello — Forma | ... | ... | FRONTAL/PERFIL | ... |
+| Cabello — Calvicie | ... | ... | FRONTAL/PERFIL | ... |
+| Cabello — Implantación | ... | ... | FRONTAL | ... |
+| Frente — Altura | ... | ... | FRONTAL | ... |
+| Frente — Inclinación | ... | ... | PERFIL | ... |
+| Frente — Ancho | ... | ... | FRONTAL | ... |
+| Cejas — Dirección | ... | ... | FRONTAL | ... |
+| Cejas — Implantación | ... | ... | FRONTAL | ... |
+| Cejas — Forma | ... | ... | FRONTAL | ... |
+| Cejas — Tamaño | ... | ... | FRONTAL | ... |
+| Ojos — Color | ... | ... | FRONTAL | ... |
+| Ojos — Forma | ... | ... | FRONTAL | ... |
+| Ojos — Tamaño | ... | ... | FRONTAL | ... |
+| Nariz — Raíz | ... | ... | FRONTAL/PERFIL | ... |
+| Nariz — Dorso | ... | ... | PERFIL | ... |
+| Nariz — Base | ... | ... | PERFIL | ... |
+| Nariz — Altura | ... | ... | FRONTAL/PERFIL | ... |
+| Nariz — Ancho | ... | ... | FRONTAL | ... |
+| Boca — Tamaño | ... | ... | FRONTAL | ... |
+| Boca — Comisuras | ... | ... | FRONTAL | ... |
+| Labios — Espesor | ... | ... | FRONTAL | ... |
+| Labios — Altura Naso-labial | ... | ... | FRONTAL/PERFIL | ... |
+| Labios — Prominencia | ... | ... | FRONTAL/PERFIL | ... |
+| Oreja D — Forma | ... | ... | PERFIL/FRONTAL | ... |
+| Oreja D — Hélix | ... | ... | PERFIL/FRONTAL | ... |
+| Oreja D — Adherencia | ... | ... | PERFIL/FRONTAL | ... |
+| Oreja D — Lóbulo Forma | ... | ... | PERFIL/FRONTAL | ... |
+| Oreja D — Lóbulo Particularidad | ... | ... | PERFIL/FRONTAL | ... |
+| Oreja D — Lóbulo Dimensión | ... | ... | PERFIL/FRONTAL | ... |
+| Mentón — Tipo | ... | ... | FRONTAL | ... |
+| Mentón — Forma | ... | ... | FRONTAL | ... |
+| Mentón — Inclinación | ... | ... | PERFIL | ... |
+| Accesorios — Lentes | ... | ... | FRONTAL | ... |
+
+## SEÑAS PARTICULARES
+| Código | Tipo | Descripción | Ubicación | Vista |
+|---|---|---|---|---|
+[filas o "Ninguna observable"]
+
+## RESUMEN NARRATIVO
+[Párrafo breve, neutral y útil para búsqueda; omite rasgos no determinados.]
+
+## ADVERTENCIAS DEL ANÁLISIS
+[Limitaciones por calidad, falta de perfil, oclusiones, iluminación, cabello cubriendo oreja, etc.]
+"""
+
+def build_portrait_prompt(texto_filiacion: str, estilo: str, angulo: str, aspect_ratio: str, acabado: str) -> str:
+    return f"""
+Genera UNA imagen de retrato hablado neutral a partir de la siguiente ficha técnica de media filiación.
+
+La imagen debe representar una persona adulta genérica basada únicamente en los rasgos físicos descritos.
+No intentes identificar a una persona real. No agregues rasgos no descritos. No infieras etnia,
+nacionalidad, religión, profesión, condición social, antecedentes ni culpabilidad.
+
+No incluyas texto, etiquetas, marcas de agua visibles, logos institucionales, armas, uniformes, esposas,
+escena de delito ni ambiente policial. Fondo liso y neutro.
+
+ESTILO: {estilo}
+ÁNGULO / COMPOSICIÓN: {angulo}
+RELACIÓN DE ASPECTO SOLICITADA: {aspect_ratio}
+ACABADO: {acabado}
+
+FICHA TÉCNICA:
+{texto_filiacion}
+
+Instrucciones visuales:
+- Expresión neutra e iluminación uniforme.
+- Mantén proporciones faciales coherentes con la ficha.
+- Si la composición es "frontal + perfil", crea un solo lienzo con ambas vistas lado a lado, sin texto.
+- Si un rasgo dice NO VISIBLE, REQUIERE FOTO DE PERFIL o NO DETERMINABLE, no lo inventes ni lo enfatices.
+""".strip()
+
+# ─────────────────────────────────────────────────────────────
+# UI PRINCIPAL
+# ─────────────────────────────────────────────────────────────
+
+# 1. CSS para reducir el espacio en blanco superior
+st.markdown(
+    """
+    <style>
+        .block-container {
+            padding-top: 2rem !important;
+            padding-bottom: 2rem !important;
+        }
+        [data-testid="stMetricValue"] { font-size: 14px !important; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.title("🕵️ Sistema de Media Filiación Forense")
+st.markdown(
+    "Herramienta basada en vocabulario de **Media Filiación SNSP** · "
+    "flujo recomendado: **fotografía frontal + fotografía de perfil** · v2.0"
+)
+
 st.markdown("---")
 
-st.caption("Sistema basado en el documento 'Registro Nacional de Identificación -Media Filiación-' del Secretariado Ejecutivo del SNSP. <br>Desarrollado por el IHCLab de la Facultad de Telemática en la Universidad de Colima")
+tab1, tab2 = st.tabs(["📸 FOTO → FICHA", "📝 FICHA → IMAGEN"])
+
+# ══════════════════════════════════════════
+# TAB 1 — FOTO A FICHA
+# ══════════════════════════════════════════
+with tab1:
+    col_ev, col_res = st.columns([1, 2])
+
+    with col_ev:
+        st.subheader("Evidencia fotográfica")
+
+        st.markdown("##### 📷 Vista frontal *(obligatoria)*")
+        uploaded_frontal = st.file_uploader(
+            "Sube la fotografía frontal",
+            type=["jpg", "jpeg", "png"],
+            key="frontal",
+        )
+
+        st.markdown("##### 📷 Vista de perfil *(opcional, recomendada)*")
+        lado_perfil = st.radio(
+            "Lado de perfil",
+            ["Perfil derecho", "Perfil izquierdo", "Perfil no especificado"],
+            horizontal=True,
+        )
+        st.caption(
+            "La segunda imagen permite determinar frente inclinación, nariz dorso/base, "
+            "mentón inclinación y oreja visible."
+        )
+        uploaded_perfil = st.file_uploader(
+            "Sube una fotografía lateral de perfil",
+            type=["jpg", "jpeg", "png"],
+            key="perfil",
+        )
+
+        img_frontal = load_uploaded_image(uploaded_frontal)
+        img_perfil = load_uploaded_image(uploaded_perfil)
+
+        if img_frontal:
+            st.image(img_frontal, caption="Vista frontal", use_container_width=True)
+        if img_perfil:
+            st.image(img_perfil, caption=lado_perfil, use_container_width=True)
+
+        if img_frontal and img_perfil:
+            st.success("✅ Captura suficiente: frontal + perfil")
+        elif img_frontal:
+            st.warning("⚠️ Solo frontal: los rasgos de perfil se marcarán como no determinables")
+
+        with st.expander("📋 Metadatos"):
+            num_ficha = st.text_input("Número de ficha", placeholder="MF-2026-001")
+            revisor = st.text_input("Persona revisora / perito", placeholder="Nombre completo")
+            expediente = st.text_input("No. de expediente", placeholder="Número")
+
+        with st.expander("📖 ¿Qué aporta cada vista?"):
+            st.success("**Frontal:** cara, cabello, frente altura/ancho, cejas, ojos, nariz raíz/altura/ancho, boca, labios, mentón tipo/forma, accesorios y señas visibles.", icon="🟢")
+            st.info("**Perfil:** frente inclinación, nariz dorso, nariz base y mentón inclinación. También ayuda con oreja y contorno lateral.", icon="🔵")
+
+        analyze_btn = st.button(
+            "🔍 GENERAR MEDIA FILIACIÓN",
+            type="primary",
+            disabled=not bool(img_frontal),
+        )
+
+    with col_res:
+        st.subheader("Ficha técnica SNSP")
+
+        with st.expander("ℹ️ Leyenda de confianza"):
+            st.markdown(
+                """
+| Nivel | Criterio |
+|---|---|
+| **ALTA** | Rasgo claramente visible, sin ambigüedad |
+| **MEDIA** | Visible con cierta ambigüedad |
+| **BAJA** | Estimado con poca certeza visual |
+| **—** | No visible, no determinable o requiere otra vista |
+"""
+            )
+
+        if analyze_btn and img_frontal:
+            with st.spinner("Procesando imágenes y aplicando vocabulario controlado…"):
+                try:
+                    imagenes_disponibles = "FRONTAL" + (f" + {lado_perfil.upper()}" if img_perfil else "")
+                    prompt = SYSTEM_PROMPT_FORENSE.format(
+                        imagenes_disponibles=imagenes_disponibles,
+                        lado_perfil=lado_perfil,
+                    )
+
+                    contents: List[Any] = [prompt, "IMAGEN FRONTAL:", img_frontal]
+                    if img_perfil:
+                        contents += [f"IMAGEN DE PERFIL ({lado_perfil}):", img_perfil]
+
+                    response = client.models.generate_content(
+                        model=ANALYSIS_MODEL_NAME,
+                        contents=contents,
+                    )
+                    resultado = collect_text(response)
+                    if not resultado:
+                        raise RuntimeError("El modelo no devolvió texto legible.")
+
+                    st.markdown(resultado)
+                    st.success("✅ Análisis completado. Requiere revisión humana antes de uso formal.")
+
+                    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    imagenes_label = imagenes_disponibles
+                    metadata = (
+                        f"Fecha: {ts}\n"
+                        f"Ficha: {num_ficha or '—'}\n"
+                        f"Revisor/Perito: {revisor or '—'}\n"
+                        f"Expediente: {expediente or '—'}\n"
+                        f"Modelo IA: {ANALYSIS_MODEL_NAME}\n"
+                        f"Imágenes: {imagenes_label}\n"
+                    )
+                    st.markdown("---")
+                    st.markdown(metadata.replace("\n", "  \n"))
+
+                    ficha_txt = (
+                        f"MEDIA FILIACIÓN SNSP\n{'=' * 60}\n"
+                        f"{metadata}"
+                        f"{'=' * 60}\n\n"
+                        f"{resultado}\n\n"
+                        "---\n"
+                        "Advertencia: resultado asistido por IA; requiere validación humana y base legal para el tratamiento de datos.\n"
+                    )
+                    filename = f"media_filiacion_{num_ficha or 'sin_num'}_{datetime.now().strftime('%Y%m%d_%H%M')}.txt"
+                    st.download_button("📥 Descargar ficha (.txt)", ficha_txt, filename, "text/plain")
+
+                    st.session_state["ultima_ficha"] = resultado
+                    st.info("La ficha quedó disponible en la pestaña FICHA → IMAGEN.")
+
+                except Exception as e:
+                    st.error(f"Error en el procesamiento: {e}")
+                    st.info("Verifica credenciales, disponibilidad del modelo y tamaño/calidad de las imágenes.")
+        elif not img_frontal:
+            st.info("👆 Sube una fotografía frontal para iniciar.")
+
+# ══════════════════════════════════════════
+# TAB 2 — FICHA A IMAGEN DIRECTA
+# ══════════════════════════════════════════
+with tab2:
+    st.header("🎨 Generador directo de retrato hablado")
+    st.markdown(
+        f"Genera una imagen sintética directamente con **{IMAGE_MODEL_NAME}**. "
+        "El prompt final queda visible para auditoría."
+    )
+
+    valor_default = st.session_state.get("ultima_ficha", "")
+    usar_anterior = False
+    if valor_default:
+        usar_anterior = st.checkbox("Usar la ficha generada en la pestaña anterior", value=True)
+
+    texto_filiacion = st.text_area(
+        "Ficha técnica SNSP o descripción de media filiación:",
+        value=valor_default if usar_anterior else "",
+        height=240,
+        placeholder=(
+            "Ejemplo: persona de sexo masculino, complexión regular, color de piel moreno, "
+            "cara ovalada, cabello negro lacio regular, cejas rectilíneas gruesas, "
+            "ojos café oscuro ovales, nariz mediana, labios medianos, mentón normal…"
+        ),
+    )
+
+    col_o1, col_o2, col_o3 = st.columns(3)
+    with col_o1:
+        estilo = st.selectbox(
+            "Estilo de imagen",
+            [
+                "Retrato de identificación neutral, fotográfico",
+                "Boceto forense técnico, lápiz, blanco y negro",
+                "Retrato hiperrealista sobrio, fondo neutro",
+                "Ilustración técnica limpia, no caricatura",
+            ],
+        )
+    with col_o2:
+        angulo = st.selectbox(
+            "Ángulo / composición",
+            [
+                "Frontal 0°",
+                "Perfil lateral 90°",
+                "Tres cuartos 45°",
+                "Frontal + perfil en un mismo lienzo",
+            ],
+        )
+    with col_o3:
+        aspect_ratio = st.selectbox(
+            "Relación de aspecto",
+            ["3:4", "1:1", "4:5", "4:3", "16:9"],
+        )
+
+    acabado = st.selectbox(
+        "Acabado",
+        [
+            "alta nitidez, iluminación uniforme, fondo gris claro",
+            "documental, neutro, sin dramatización",
+            "forensic sketch, clean linework, neutral background",
+        ],
+    )
+
+    prompt_final = ""
+    if texto_filiacion.strip():
+        prompt_final = build_portrait_prompt(
+            texto_filiacion=texto_filiacion.strip(),
+            estilo=estilo,
+            angulo=angulo,
+            aspect_ratio=aspect_ratio,
+            acabado=acabado,
+        )
+
+    with st.expander("🔎 Ver prompt final"):
+        st.code(prompt_final or "Ingresa una ficha para construir el prompt.", language="text")
+
+    col_btn1, col_btn2 = st.columns([1, 1])
+    with col_btn1:
+        st.download_button(
+            "📋 Descargar prompt (.txt)",
+            prompt_final or "",
+            f"prompt_retrato_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
+            "text/plain",
+            disabled=not bool(prompt_final),
+        )
+    with col_btn2:
+        generar_imagen = st.button(
+            "🖼️ Generar imagen con Gemini",
+            type="primary",
+            disabled=not bool(prompt_final),
+        )
+
+    if generar_imagen and prompt_final:
+        with st.spinner(f"Generando imagen con {IMAGE_MODEL_NAME}…"):
+            try:
+                response_img = client.models.generate_content(
+                    model=IMAGE_MODEL_NAME,
+                    contents=prompt_final,
+                    config=image_generation_config(),
+                )
+                texto_modelo, imagenes = collect_text_and_images(response_img)
+
+                if texto_modelo:
+                    st.markdown("#### Respuesta del modelo")
+                    st.markdown(texto_modelo)
+
+                if not imagenes:
+                    st.warning(
+                        "El modelo no devolvió imagen. Puede deberse a credenciales, cuota, disponibilidad del modelo "
+                        "o filtros de seguridad."
+                    )
+                else:
+                    st.markdown("#### Imagen generada")
+                    ts_img = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    for idx, imagen in enumerate(imagenes, start=1):
+                        st.image(imagen, caption=f"Retrato generado {idx}", use_container_width=True)
+                        st.download_button(
+                            f"📥 Descargar imagen {idx} (.png)",
+                            image_to_png_bytes(imagen),
+                            f"retrato_hablado_{ts_img}_{idx}.png",
+                            "image/png",
+                            key=f"download_img_{idx}_{ts_img}",
+                        )
+
+            except Exception as e:
+                st.error(f"Error al generar imagen: {e}")
+                st.info(
+                    "Verifica que tu modelo de imagen esté disponible en tu cuenta/proyecto, "
+                    "que Agent Platform esté habilitado si usas Google Cloud y que tengas cuota."
+                )
+
+# ─────────────────────────────────────────────────────────────
+# FOOTER
+# ─────────────────────────────────────────────────────────────
+st.markdown("---")
+left_f, right_f = st.columns([3, 1])
+with left_f:
+    st.caption(
+        "Sistema basado en el Registro Nacional de Identificación — Media Filiación del SNSP. "
+        "⚠️ **Resultado asistido por IA**; requiere revisión humana y uso conforme a normativa aplicable."
+    )
+with right_f:
+    st.caption(
+        "Desarrollado por el IHCLab de la Facultad de Telemática en la Universidad de Colima",
+        unsafe_allow_html=True
+    )
