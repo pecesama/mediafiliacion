@@ -18,6 +18,7 @@ from typing import Any, List, Tuple
 import streamlit as st
 from PIL import Image
 from fpdf import FPDF
+import streamlit.components.v1 as components
 
 try:
     from google import genai
@@ -182,10 +183,24 @@ def image_generation_config():
         return types.GenerateContentConfig(response_modalities=["TEXT", "IMAGE"])
 
 def generar_pdf_filiacion(num_ficha: str, metadata: str, texto_markdown: str) -> bytes:
-    """Construye un documento PDF institucional con los resultados."""
+    """Construye un documento PDF institucional con los resultados y previene errores Unicode."""
+    
+    def limpiar_unicode(texto: str) -> str:
+        """Reemplaza caracteres especiales no soportados por la fuente estándar de FPDF."""
+        reemplazos = {
+            '—': '-', '–': '-',   # Guiones largos a guion normal
+            '•': '-',             # Viñetas a guion normal
+            '“': '"', '”': '"',   # Comillas tipográficas a normales
+            '‘': "'", '’': "'",   # Comillas simples tipográficas a normales
+            '…': '...',           # Puntos suspensivos especiales a tres puntos
+            '\u200b': ''          # Espacios invisibles
+        }
+        for buscar, cambiar in reemplazos.items():
+            texto = texto.replace(buscar, cambiar)
+        return texto
+
     class PDFReport(FPDF):
         def header(self):
-            # Encabezado Oficial
             self.set_font("helvetica", "B", 14)
             self.cell(0, 10, "SISTEMA NACIONAL DE SEGURIDAD PÚBLICA", align="C", new_x="LMARGIN", new_y="NEXT")
             self.set_font("helvetica", "B", 12)
@@ -193,7 +208,6 @@ def generar_pdf_filiacion(num_ficha: str, metadata: str, texto_markdown: str) ->
             self.ln(5)
 
         def footer(self):
-            # Pie de página con numeración
             self.set_y(-15)
             self.set_font("helvetica", "I", 8)
             self.cell(0, 10, f"Página {self.page_no()}/{{nb}}", align="C")
@@ -201,34 +215,36 @@ def generar_pdf_filiacion(num_ficha: str, metadata: str, texto_markdown: str) ->
     pdf = PDFReport()
     pdf.add_page()
     
-    # --- SECCIÓN DE METADATOS ---
+    # --- METADATOS ---
     pdf.set_font("helvetica", "B", 10)
     pdf.cell(0, 8, "DATOS DEL EXPEDIENTE:", new_x="LMARGIN", new_y="NEXT")
     
     pdf.set_font("helvetica", size=10)
-    # Escribimos cada línea de los metadatos
     for linea in metadata.split('\n'):
         if linea.strip():
-            pdf.cell(0, 6, linea.strip(), new_x="LMARGIN", new_y="NEXT")
+            # Limpiamos cada línea antes de enviarla al PDF
+            linea_limpia = limpiar_unicode(linea.strip())
+            pdf.cell(0, 6, linea_limpia, new_x="LMARGIN", new_y="NEXT")
     
     pdf.ln(5)
     
-    # --- SECCIÓN DE RESULTADOS (Limpieza de Markdown) ---
+    # --- RESULTADOS ---
     pdf.set_font("helvetica", size=10)
-    # El modelo de IA nos da Markdown (con **, ##, y tablas con |). 
-    # Hacemos una limpieza básica para que se lea limpio en el PDF.
     for linea in texto_markdown.split('\n'):
+        # Limpiamos el Markdown y los caracteres Unicode
         linea_limpia = linea.replace('**', '').replace('##', '').replace('|', '  ')
+        linea_limpia = limpiar_unicode(linea_limpia)
+        
         if linea_limpia.strip() == '---':
             pdf.ln(5)
             continue
             
         pdf.multi_cell(0, 6, linea_limpia, new_x="LMARGIN", new_y="NEXT")
         
-    # --- AVISO LEGAL AL FINAL ---
+    # --- AVISO LEGAL ---
     pdf.ln(10)
     pdf.set_font("helvetica", "I", 8)
-    aviso = "Advertencia: Resultado asistido por IA. Requiere validación humana y uso conforme a normativa aplicable. Herramienta de apoyo técnico, no debe usarse para identificación automática concluyente."
+    aviso = "Advertencia: Resultado asistido por IA. Requiere validacion humana y uso conforme a normativa aplicable."
     pdf.multi_cell(0, 5, aviso, new_x="LMARGIN", new_y="NEXT")
 
     return bytes(pdf.output())
@@ -503,6 +519,13 @@ with tab1:
             )
 
         if analyze_btn and img_frontal:
+            # 1. INYECTAR JAVASCRIPT PARA SUBIR EL SCROLL A LA CIMA
+            components.html(
+                "<script>window.parent.document.querySelector('section.main').scrollTo({top: 0, behavior: 'smooth'});</script>",
+                height=0
+            )
+            
+            # 2. MOSTRAR EL SPINNER (Ahora el usuario sí lo verá)
             with st.spinner("Procesando imágenes y aplicando vocabulario controlado…"):
                 try:
                     imagenes_disponibles = "FRONTAL" + (f" + {lado_perfil.upper()}" if img_perfil else "")
