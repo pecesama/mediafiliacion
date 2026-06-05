@@ -1,4 +1,4 @@
-# Media Filiación SNSP v2.1
+# Media Filiación SNSP v2.0
 
 Aplicación Streamlit para dos flujos:
 
